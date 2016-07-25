@@ -1,10 +1,12 @@
 import os
+import sys
 import tensorflow as tf
 import numpy as np
 import time
 from scipy.stats import truncnorm
 from .ops import *
 from .advantage import *
+eps = 1e-10
 
 class GAE_Agent(object):
     def __init__(self,env,sess,writer):     
@@ -71,40 +73,52 @@ class GAE_Agent(object):
         cur_mu = self.sess.run(self.mu,feed_dict={self.x_:x})
         cur_mu = np.squeeze(cur_mu,0)
         cur_sigma = self.sigma #network could learn this as well as mu
-        return cur_mu+np.random.randn(self.u_dim)*cur_sigma
+        act =  cur_mu+np.random.randn(self.u_dim)*cur_sigma
+        return act
         #return truncnorm.rvs(cur_mu,cur_sigma,self.u_dim)
 
 
     def build_model(self):
-        #inputs
-        self.x_ = tf.placeholder('float32',[None,self.x_dim])
-        self.u_ = tf.placeholder('float32',[None,self.u_dim])
-        self.R_ = tf.placeholder('float32',[None,1])
-        tf.histogram_summary('Returns',self.R_)
-        tf.scalar_summary('avg Returns',tf.reduce_mean(self.R_))
-        tf.histogram_summary('actions',self.u_)
-        #network definition
-        self.hid1 = linear(self.x_,self.hid_dim1,'hid1',tf.nn.relu)
-        #self.hid2= linear(self.hid1,self.hid_dim2,'hid2',tf.nn.relu)
-        last_hid = self.hid1
-        self.A = Baseline(last_hid)
-        self.mu = linear(last_hid,self.u_dim,'mu',bias=False)
-        #self.mu = tf.tanh(self.mu)*2.0 #normalize to action range
-        tf.histogram_summary('mu',self.mu)
-        self.log_p = tf.log(tf.clip_by_value(norm_pdf(self.u_,self.mu,self.sigma),eps,float('inf')))
-        #self.log_p = tf.log(norm_pdf(self.u_,self.mu,self.sigma))
+        with tf.device('/cpu:0'):
+            #inputs
+            self.x_ = tf.placeholder('float32',[None,self.x_dim])
+            self.u_ = tf.placeholder('float32',[None,self.u_dim])
+            self.R_ = tf.placeholder('float32',[None,1])
+            tf.histogram_summary('Returns',self.R_)
+            tf.scalar_summary('avg Returns',tf.reduce_mean(self.R_))
+            tf.histogram_summary('actions',self.u_)
+            #network definition
+            self.hid1 = linear(self.x_,self.hid_dim1,'hid1',tf.nn.relu)
+            #self.hid2= linear(self.hid1,self.hid_dim2,'hid2',tf.nn.relu)
+            last_hid = self.hid1
+            self.mu = linear(last_hid,self.u_dim,'mu',bias=False)
+            #self.mu = tf.tanh(self.mu)*2.0 #normalize to action range
+            tf.histogram_summary('mu',self.mu)
+            self.log_p = tf.log(tf.clip_by_value(norm_pdf(self.u_,self.mu,self.sigma),eps,float('inf')))
+            #self.log_p = tf.log(norm_pdf(self.u_,self.mu,self.sigma))
+            
+            
+            self.A = Baseline(last_hid)
+            self.b_loss = self.A.get_loss(self.R_) 
+            self.u_loss = tf.reduce_mean(-self.log_p*self.A.get_advantage(self.R_))
+            '''
+            self.baseline = linear(last_hid,1,'baseline')#,bias_value=-300.0)
+            self.b_loss = tf.reduce_mean(tf.square(self.R_-self.baseline))
+            tf.scalar_summary('baseline',tf.reduce_mean(self.baseline))
+            tf.scalar_summary('baseline - R',tf.reduce_mean(self.R_-self.baseline))
+            self.u_loss = tf.reduce_mean(-self.log_p*(self.R_-tf.stop_gradient(self.baseline)))
+            '''
+            
+            
 
-        self.cur_A = self.A.get_advantage(self.R_)
-        self.b_loss = self.A.get_loss(self.R_) 
-        self.u_loss = tf.reduce_mean(-self.log_p*self.cur_A)
-        tf.scalar_summary('action prob * A',self.u_loss)
-        self.net_loss = 1.0*self.b_loss+self.u_loss
-        tf.scalar_summary('loss',self.net_loss)
-        #optimizer
-        self.optim = tf.train.AdamOptimizer(1e-4)
-        self.grads = self.optim.compute_gradients(self.net_loss)
-        [tf.histogram_summary(v.name,g) if g is not None else '' for g,v in self.grads]
-        self.train_step = self.optim.apply_gradients(self.grads)
+            tf.scalar_summary('action prob * A',self.u_loss)
+            self.net_loss = self.b_loss+self.u_loss
+            tf.scalar_summary('loss',self.net_loss)
+            #optimizer
+            self.optim = tf.train.AdamOptimizer(1e-4)
+            self.grads = self.optim.compute_gradients(self.net_loss)
+            [tf.histogram_summary(v.name,g) if g is not None else '' for g,v in self.grads]
+            self.train_step = self.optim.apply_gradients(self.grads)
 
             
 

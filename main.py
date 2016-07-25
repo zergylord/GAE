@@ -21,10 +21,15 @@ sess = tf.Session()
 #tensor board stuff------
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('summary_dir', '/tmp/mnist_logs', 'Summaries directory')
+dir_path = '/tmp/gae_logs'
+if len(sys.argv) >= 1:
+    print('custom directory')
+    dir_path += '/'+sys.argv[1]
+flags.DEFINE_string('summary_dir',dir_path, 'Summaries directory')
 if tf.gfile.Exists(FLAGS.summary_dir):
     tf.gfile.DeleteRecursively(FLAGS.summary_dir)
-    tf.gfile.MakeDirs(FLAGS.summary_dir)
+tf.gfile.MakeDirs(FLAGS.summary_dir)
+
 writer = tf.train.SummaryWriter(FLAGS.summary_dir,sess.graph)
 agent = GAE_Agent(env,sess,writer) 
 agent.train()
