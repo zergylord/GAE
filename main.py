@@ -22,7 +22,7 @@ sess = tf.Session()
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 dir_path = '/tmp/gae_logs'
-if len(sys.argv) >= 1:
+if len(sys.argv) > 1:
     print('custom directory')
     dir_path += '/'+sys.argv[1]
 flags.DEFINE_string('summary_dir',dir_path, 'Summaries directory')

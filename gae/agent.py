@@ -94,7 +94,7 @@ class GAE_Agent(object):
             self.mu = linear(last_hid,self.u_dim,'mu',bias=False)
             #self.mu = tf.tanh(self.mu)*2.0 #normalize to action range
             tf.histogram_summary('mu',self.mu)
-            self.log_p = tf.log(tf.clip_by_value(norm_pdf(self.u_,self.mu,self.sigma),eps,float('inf')))
+            self.log_p = tf.reduce_sum(tf.log(tf.clip_by_value(norm_pdf(self.u_,self.mu,self.sigma),eps,float('inf'))),1)
             #self.log_p = tf.log(norm_pdf(self.u_,self.mu,self.sigma))
             
             
