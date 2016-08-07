@@ -115,7 +115,7 @@ class GAE_Agent(object):
             self.net_loss = self.b_loss+self.u_loss
             tf.scalar_summary('loss',self.net_loss)
             #optimizer
-            self.optim = tf.train.AdamOptimizer(1e-4)
+            self.optim = tf.train.AdamOptimizer(1e-3)
             self.grads = self.optim.compute_gradients(self.net_loss)
             [tf.histogram_summary(v.name,g) if g is not None else '' for g,v in self.grads]
             self.train_step = self.optim.apply_gradients(self.grads)
